@@ -29,7 +29,7 @@ supabase link --project-ref <ref> && supabase db push   # 원격 반영
 ## 구조
 
 - **시장 정의가 두 곳에 있다.** `dm_market.py`의 `load_csv()`(판다스)와 `supabase/migrations/*_dm_market_views.sql`의 `claim_dims` → `dm_rx`·`dm_dx` 뷰(SQL)가 같은 규칙(약효분류 396 = 당뇨병용제, 주상병 E11, 거주 시도 기준 권역, `institution.cl_cd` 종별, 연령 = 진료연도 − 출생연도)을 구현한다. 하나를 바꾸면 다른 쪽도 바꾸고 합계를 대조한다.
-- `dm.load()`는 `.env`에 `SUPABASE_DB_URL`이 있으면 뷰를 읽고(`load_db`), 없으면 CSV로 계산한다(`load_csv`). 반환 모양(행 단위 rx/dx 데이터프레임 + `ym`, `year`, `cl_nm`, `region_nm`, `sido_nm`, `sex`, `age_grp` 차원)은 같아야 한다. `app.py`가 모든 집계·필터를 이 행 단위 데이터 위에서 판다스로 한다(환자수 = `jid` nunique라 사전 합산 테이블로는 대체 불가).
+- `dm.load()`는 `.env`에 `SUPABASE_DB_URL`이 있으면 뷰를 읽고(`load_db`), 없으면 CSV로 계산한다(`load_csv`). `.env`는 import 시점에 한 번만 읽으므로, 바꾸면 Streamlit 서버를 다시 시작해야 한다(사이드바 새로고침 버튼으로는 안 바뀐다). 반환 모양(행 단위 rx/dx 데이터프레임 + `ym`, `year`, `cl_nm`, `region_nm`, `sido_nm`, `sex`, `age_grp` 차원)은 같아야 한다. `app.py`가 모든 집계·필터를 이 행 단위 데이터 위에서 판다스로 한다(환자수 = `jid` nunique라 사전 합산 테이블로는 대체 불가).
 - 성분 표시명·계열 매핑은 파이썬 `INGREDIENTS`와 DB 테이블 `dm_ingredient` 두 곳에 있다. 표시 순서 상수(`INGREDIENT_ORDER`, `CL_ORDER`, `AGE_ORDER`, `REGION_ORDER`)는 파이썬에만 있다.
 - 전국 추정 = 샘플 값 × (전국 인구 ÷ 3,000). 단순 인구 비례이며 연령·지역 가중치 없음.
 - 원본 테이블은 모두 RLS 켜짐·정책 없음, 뷰는 `security_invoker` + anon/authenticated 권한 회수. 즉 Supabase API(anon key)로는 아무것도 안 보이고, 대시보드는 DB 연결 문자열(postgres 역할)로 직접 읽는다. 행 단위 뷰에는 수진자 ID(`jid`)가 있으니 공개 화면에 열 때는 집계 뷰를 따로 만들어 그것만 grant 한다.
