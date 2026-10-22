@@ -39,6 +39,8 @@ supabase db push
 
 공유판: https://claude.ai/artifact/FAe1GcavAmRRMVRSCQJwWS
 
+공유판은 페이지가 직접 인터넷에 접속할 수 없어서 Supabase를 실시간으로 읽지 못합니다. Claude Code에서 `/refresh-dashboard`를 실행하면 Supabase 뷰에서 CSV를 뽑아 공유판 데이터를 바꿔 줍니다.
+
 ## 한계
 
 전국 추정은 단순 인구 비례입니다. 연령·지역 가중치가 없으므로 공식 통계와 대조해 보정하세요.

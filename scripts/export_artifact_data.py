@@ -1,5 +1,8 @@
 """공유용 대시보드(Artifact)에 올릴 팩트 테이블 CSV를 만든다.
 
+.env 에 SUPABASE_DB_URL 이 있으면 Supabase 뷰(dm_rx, dm_dx)에서, 없으면 data/raw CSV에서 만든다.
+공유판에 올리는 절차는 /refresh-dashboard (.claude/skills/refresh-dashboard) 참고.
+
     .venv/bin/python scripts/export_artifact_data.py
     -> data/export/dm_rx.csv, data/export/dm_dx.csv
 """
@@ -26,7 +29,8 @@ def main():
                 df[col] = df[col].astype(int)
     rx.to_csv(OUT / "dm_rx.csv", index=False)
     dx.to_csv(OUT / "dm_dx.csv", index=False)
-    print(f"dm_rx.csv {len(rx)} rows, dm_dx.csv {len(dx)} rows")
+    print(f"source={dm.source()} dm_rx.csv {len(rx)} rows (amt {rx.amt.sum():,}), "
+          f"dm_dx.csv {len(dx)} rows (total {dx.total.sum():,})")
 
 
 if __name__ == "__main__":

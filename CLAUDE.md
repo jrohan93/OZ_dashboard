@@ -33,6 +33,6 @@ supabase link --project-ref <ref> && supabase db push   # 원격 반영
 - 성분 표시명·계열 매핑은 파이썬 `INGREDIENTS`와 DB 테이블 `dm_ingredient` 두 곳에 있다. 표시 순서 상수(`INGREDIENT_ORDER`, `CL_ORDER`, `AGE_ORDER`, `REGION_ORDER`)는 파이썬에만 있다.
 - 전국 추정 = 샘플 값 × (전국 인구 ÷ 3,000). 단순 인구 비례이며 연령·지역 가중치 없음.
 - 원본 테이블은 모두 RLS 켜짐·정책 없음, 뷰는 `security_invoker` + anon/authenticated 권한 회수. 즉 Supabase API(anon key)로는 아무것도 안 보이고, 대시보드는 DB 연결 문자열(postgres 역할)로 직접 읽는다. 행 단위 뷰에는 수진자 ID(`jid`)가 있으니 공개 화면에 열 때는 집계 뷰를 따로 만들어 그것만 grant 한다.
-- `dashboard/index.html`은 claude.ai Artifact(공유판) 원본이다. 데이터는 `scripts/export_artifact_data.py`가 만든 `data/export/dm_rx.csv`·`dm_dx.csv`를 쓰며 아직 Supabase에 연결되지 않았다. 공유판 주소: https://claude.ai/artifact/FAe1GcavAmRRMVRSCQJwWS
+- 공유판(https://claude.ai/artifact/FAe1GcavAmRRMVRSCQJwWS)은 Dashboard 타입 아티팩트다. 페이지는 네트워크에 접속할 수 없어서 Supabase를 직접 읽지 못한다. 데이터셋 `dm_rx`·`dm_dx`는 `scripts/export_artifact_data.py`가 Supabase 뷰에서 뽑은 CSV를 업로드한 파일이다. 갱신 절차는 `/refresh-dashboard` 스킬(`.claude/skills/refresh-dashboard/SKILL.md`)에 있다. `dashboard/index.html`은 그 페이지의 로컬 사본이다.
 - 코드 컬럼(`sido_cd`, `cl_cd`, `fom_tp_cd`, `dgsbjt_cd` 등)은 앞자리 0이 있으므로 DB에서는 `text`, 판다스에서는 `dtype=str`로 읽는다.
 - 데이터 한계: 당뇨병용제 성분은 시타글립틴·글리메피리드·메트포르민 세 가지뿐이다.
