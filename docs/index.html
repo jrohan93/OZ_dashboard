@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>당뇨병 시장 규모</title>
+<meta name="description" content="청구 데이터 실습 샘플로 본 국내 당뇨병 약물·질환 시장 규모 (Supabase 실시간 연결)">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<style>
+  :root {
+    --font-anthropic-sans: "Pretendard", system-ui, -apple-system, sans-serif;
+    --font-anthropic-serif: "Pretendard", system-ui, -apple-system, sans-serif;
+    --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 20px;
+    --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 16px;
+    --cds-radius: 10px; --cds-font-weight-medium: 600;
+    --cds-font-size-caption: 12.5px; --cds-font-size-body: 15px; --cds-font-size-heading: 16px; --cds-font-size-title: 28px;
+    --cds-dur-slow: .3s;
+    --color-bg: #fafaf7; --color-panel: #ffffff; --color-fg: #0b0b0b; --color-fg-muted: #6b6a65;
+    --color-border-line: #e1e0d9; --color-ok: #1a8a5e; --color-bad: #c8412b; --color-warn: #b7791f;
+    --cds-chart-grid: #ecebe5; --cds-chart-axis: #c3c2b7; --cds-chart-reference: #898781;
+    --cds-surface-popover: #ffffff; --cds-border: #e1e0d9; --cds-text-secondary: #6b6a65;
+    --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.08);
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #151514; --color-panel: #1e1e1c; --color-fg: #f2f1ec; --color-fg-muted: #a3a29b;
+      --color-border-line: #33322f; --color-ok: #4cc391; --color-bad: #f07a63; --color-warn: #e0b04a;
+      --cds-chart-grid: #2c2b28; --cds-chart-axis: #4a4945; --cds-chart-reference: #8a8983;
+      --cds-surface-popover: #262624; --cds-border: #3a3936; --cds-text-secondary: #a3a29b;
+      --cds-shadow-popover: 0 4px 16px rgba(0,0,0,.4);
+      --s1: #5a9cf0; --s2: #f28a5c; --s3: #3fc995;
+      color-scheme: dark;
+    }
+  }
+  body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+  .page { max-width: 1200px; margin: 0 auto; padding: 28px 16px 48px; }
+  .dash-skeleton { color: transparent !important; background: var(--color-border-line); border-radius: 6px; animation: pulse 1.2s ease-in-out infinite; }
+  .dm-chart.dash-skeleton, .dm-chart-sm.dash-skeleton { color: inherit !important; }
+  @keyframes pulse { 50% { opacity: .5; } }
+  .site-foot { margin-top: 28px; font-size: 12.5px; color: var(--color-fg-muted); line-height: 1.6; }
+  .site-foot a { color: inherit; }
+</style>
+</head>
+<body>
+<main class="page">
+<style>
+  .dm { --dm-chart-h: 260px; display: flex; flex-direction: column; gap: var(--cds-gap-lg); font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+  .dm-head { display: flex; flex-direction: column; gap: var(--cds-gap-xs); }
+  .dm-title { margin: 0; font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); text-wrap: balance; }
+  .dm-take { margin: 0; font-size: var(--cds-font-size-body); max-width: 72ch; line-height: 1.5; }
+  .dm-sub { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 80ch; line-height: 1.5; }
+
+  .dm-filters { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md) var(--cds-gap-lg); padding: var(--cds-pad-md) var(--cds-pad-lg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+  .dm-fgroup { display: flex; flex-direction: column; gap: var(--cds-gap-xs); min-width: 0; }
+  .dm-flabel { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); letter-spacing: .02em; }
+  .dm-chips { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+  .dm-chip { font: inherit; font-size: var(--cds-font-size-caption); padding: 3px 10px; border-radius: 999px; border: 1px solid var(--color-border-line); background: transparent; color: var(--color-fg-muted); cursor: pointer; }
+  .dm-chip[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+  .dm-chip:focus-visible, .dm-tab:focus-visible, .dm-input:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+  .dm-input { font: inherit; font-size: var(--cds-font-size-caption); width: 9.5rem; padding: 3px 8px; border-radius: var(--cds-radius); border: 1px solid var(--color-border-line); background: var(--color-bg); color: var(--color-fg); font-variant-numeric: tabular-nums; }
+  .dm-factor { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+  .dm-reset { align-self: flex-end; }
+
+  .dm-tabs { display: flex; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); overflow-x: auto; }
+  .dm-tab { font: inherit; font-size: var(--cds-font-size-body); padding: var(--cds-pad-xs) var(--cds-pad-sm); background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--color-fg-muted); cursor: pointer; white-space: nowrap; }
+  .dm-tab[aria-selected="true"] { color: var(--color-fg); border-bottom-color: var(--color-fg); }
+
+  .dm-page { display: flex; flex-direction: column; gap: var(--cds-gap-lg); }
+  .dm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--cds-gap-md); }
+  .dm-kpi { display: flex; flex-direction: column; gap: var(--cds-gap-xs); padding: var(--cds-pad-lg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+  .dm-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .dm-kpi-value { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); line-height: 1.15; min-height: 1.15em; }
+  .dm-kpi-delta { font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .dm-up { color: var(--color-ok); }
+  .dm-down { color: var(--color-bad); }
+  .dm-flat { color: var(--color-fg-muted); }
+  .dm-kpi-alt { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+
+  .dm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--cds-gap-md); }
+  .dm-card { display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; padding: var(--cds-pad-lg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+  .dm-wide { grid-column: 1 / -1; }
+  .dm-card-title { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+  .dm-note { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.45; }
+  .dm-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .dm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dm-sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .dm-chart { position: relative; min-height: var(--dm-chart-h); }
+  .dm-chart-sm { position: relative; min-height: 120px; }
+  .dm-empty { display: flex; align-items: center; justify-content: center; min-height: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); gap: 8px; }
+  .dm-dot-bad { width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+
+  .dm-tip { position: absolute; z-index: 2; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .dm-tip-head { color: var(--cds-text-secondary); margin-bottom: 2px; }
+  .dm-tip-row { display: flex; align-items: center; gap: 6px; }
+
+  .dm-hbars { display: grid; grid-template-columns: max-content 1fr max-content; gap: 8px 10px; align-items: center; font-size: var(--cds-font-size-caption); }
+  .dm-hb-label { color: var(--color-fg-muted); white-space: nowrap; }
+  .dm-hb-track { height: 18px; min-width: 0; }
+  .dm-hb-bar { height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+  .dm-hb-val { font-variant-numeric: tabular-nums; text-align: right; }
+
+  .dm-tablewrap { overflow-x: auto; }
+  .dm-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+  .dm-table th { text-align: right; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; background: var(--color-panel); position: sticky; top: 0; }
+  .dm-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .dm-table th:first-child, .dm-table td:first-child { text-align: left; }
+  .dm-scroll { max-height: 22rem; overflow: auto; }
+
+  .dm-method { display: flex; flex-direction: column; gap: var(--cds-gap-md); max-width: 75ch; font-size: var(--cds-font-size-body); line-height: 1.6; }
+  .dm-method h3 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+  .dm-method p, .dm-method ul { margin: 0; }
+  .dm-method ul { padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+
+  .dm [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+  .dm [data-dash-source-state=empty] { color: transparent; }
+  .dm-svg text { fill: var(--color-fg-muted); font-size: 11px; font-family: var(--font-anthropic-sans); }
+</style>
+
+<div class="dm">
+  <header class="dm-head">
+    <h1 class="dm-title" id="top">국내 당뇨병 시장 규모</h1>
+    <p class="dm-take dash-skeleton" id="takeaway" data-source="dm_rx dm_dx">—</p>
+    <p class="dm-sub">심평원 청구 형식 실습 샘플(수진자 3,000명, 2024-01 ~ 2025-12) 기준. 약물 시장은 당뇨병용제(약효분류 396) 원외처방액, 질환 시장은 2형 당뇨병(E11) 주상병 명세서의 총진료비입니다. 전국 값은 인구 비례 단순 추정입니다.</p>
+  </header>
+
+  <section class="dm-filters" id="filters" aria-label="필터">
+    <div class="dm-fgroup"><span class="dm-flabel">기준</span><div class="dm-chips" id="f-view"></div></div>
+    <div class="dm-fgroup"><label class="dm-flabel" for="f-pop">전국 인구 (명)</label>
+      <div class="dm-chips"><input class="dm-input" id="f-pop" type="number" min="3000" step="100000"><span class="dm-factor" id="f-factor"></span></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">연도</span><div class="dm-chips" id="f-years"></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">성분 (약물 시장)</span><div class="dm-chips" id="f-ings"></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">요양기관 종별</span><div class="dm-chips" id="f-cls"></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">권역 (거주지)</span><div class="dm-chips" id="f-regions"></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">성별</span><div class="dm-chips" id="f-sexes"></div></div>
+    <div class="dm-fgroup"><span class="dm-flabel">연령대</span><div class="dm-chips" id="f-ages"></div></div>
+    <div class="dm-fgroup dm-reset"><button class="dm-chip" id="f-reset" type="button">필터 초기화</button></div>
+  </section>
+
+  <nav class="dm-tabs" role="tablist" aria-label="화면">
+    <button class="dm-tab" role="tab" id="tab-rx" data-page="rx" type="button">약물 시장</button>
+    <button class="dm-tab" role="tab" id="tab-dx" data-page="dx" type="button">질환 시장</button>
+    <button class="dm-tab" role="tab" id="tab-method" data-page="method" type="button">정의와 추정 방법</button>
+  </nav>
+
+  <!-- 약물 시장 -->
+  <section class="dm-page" id="rx" role="tabpanel" aria-labelledby="tab-rx">
+    <div class="dm-kpis">
+      <div class="dm-kpi" id="kpi-rx-amt"><span class="dm-kpi-label">당뇨병용제 처방액 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_rx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+      <div class="dm-kpi" id="kpi-rx-pts"><span class="dm-kpi-label">처방 환자수 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_rx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+      <div class="dm-kpi" id="kpi-rx-n"><span class="dm-kpi-label">처방 건수 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_rx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+    </div>
+    <div class="dm-grid">
+      <div class="dm-card dm-wide" id="card-rx-month">
+        <h3 class="dm-card-title">월별 처방액 추이</h3>
+        <p class="dm-note">성분별 원외처방 금액. <span class="dm-unit"></span></p>
+        <div class="dm-legend" id="lg-rx-month"></div>
+        <div class="dm-chart dash-skeleton" id="ch-rx-month" data-source="dm_rx"></div>
+      </div>
+      <div class="dm-card" id="card-rx-share">
+        <h3 class="dm-card-title">성분별 점유율</h3>
+        <p class="dm-note">선택 기간 처방액 기준. 건수 점유율과 건당 금액은 표에 있습니다.</p>
+        <div class="dm-chart-sm dash-skeleton" id="ch-rx-share" data-source="dm_rx"></div>
+        <div class="dm-tablewrap"><table class="dm-table" id="tb-rx-share" data-source="dm_rx"></table></div>
+      </div>
+      <div class="dm-card" id="card-rx-qshare">
+        <h3 class="dm-card-title">분기별 점유율 변화</h3>
+        <p class="dm-note">분기 처방액 중 성분별 비중.</p>
+        <div class="dm-legend" id="lg-rx-q"></div>
+        <div class="dm-chart dash-skeleton" id="ch-rx-q" data-source="dm_rx"></div>
+      </div>
+      <div class="dm-card" id="card-rx-cl">
+        <h3 class="dm-card-title">요양기관 종별 처방액</h3>
+        <p class="dm-note"><span class="dm-unit"></span></p>
+        <div class="dm-chart-sm dash-skeleton" id="ch-rx-cl" data-source="dm_rx"></div>
+      </div>
+      <div class="dm-card" id="card-rx-region">
+        <h3 class="dm-card-title">권역별 처방액</h3>
+        <p class="dm-note">환자 거주지 기준. <span class="dm-unit"></span></p>
+        <div class="dm-chart-sm dash-skeleton" id="ch-rx-region" data-source="dm_rx"></div>
+      </div>
+      <div class="dm-card dm-wide" id="card-rx-age">
+        <h3 class="dm-card-title">성별·연령대 처방액</h3>
+        <p class="dm-note">연령은 진료 연도 기준. <span class="dm-unit"></span></p>
+        <div class="dm-legend" id="lg-rx-age"></div>
+        <div class="dm-chart dash-skeleton" id="ch-rx-age" data-source="dm_rx"></div>
+      </div>
+      <div class="dm-card dm-wide" id="card-rx-sido">
+        <h3 class="dm-card-title">시도별 처방액</h3>
+        <p class="dm-note">환자 거주 시도 기준, 처방액 순. <span class="dm-unit"></span></p>
+        <div class="dm-tablewrap dm-scroll"><table class="dm-table" id="tb-rx-sido" data-source="dm_rx"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 질환 시장 -->
+  <section class="dm-page" id="dx" role="tabpanel" aria-labelledby="tab-dx" hidden>
+    <div class="dm-kpis">
+      <div class="dm-kpi" id="kpi-dx-total"><span class="dm-kpi-label">E11 총진료비 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_dx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+      <div class="dm-kpi" id="kpi-dx-pts"><span class="dm-kpi-label">E11 진료 환자수 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_dx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+      <div class="dm-kpi" id="kpi-dx-n"><span class="dm-kpi-label">E11 명세서 · <span class="dm-yr">선택 기간</span></span>
+        <span class="dm-kpi-value dash-skeleton" data-source="dm_dx">—</span><span class="dm-kpi-delta"></span><span class="dm-kpi-alt"></span></div>
+    </div>
+    <div class="dm-grid">
+      <div class="dm-card dm-wide" id="card-dx-month">
+        <h3 class="dm-card-title">월별 E11 총진료비</h3>
+        <p class="dm-note">2형 당뇨병이 주상병인 명세서의 총진료비(보험자 + 본인부담). <span class="dm-unit"></span></p>
+        <div class="dm-chart dash-skeleton" id="ch-dx-month" data-source="dm_dx"></div>
+      </div>
+      <div class="dm-card" id="card-dx-year">
+        <h3 class="dm-card-title">연도별 비교</h3>
+        <p class="dm-note">연도 필터와 관계없이 두 해를 모두 보여줍니다. 환자당·명세서당 진료비는 샘플 실측입니다.</p>
+        <div class="dm-tablewrap"><table class="dm-table" id="tb-dx-year" data-source="dm_dx"></table></div>
+      </div>
+      <div class="dm-card" id="card-dx-cl">
+        <h3 class="dm-card-title">요양기관 종별 진료 환자수</h3>
+        <p class="dm-note"><span class="dm-unit"></span></p>
+        <div class="dm-chart-sm dash-skeleton" id="ch-dx-cl" data-source="dm_dx"></div>
+      </div>
+      <div class="dm-card" id="card-dx-region">
+        <h3 class="dm-card-title">권역별 진료 환자수</h3>
+        <p class="dm-note">환자 거주지 기준. <span class="dm-unit"></span></p>
+        <div class="dm-chart-sm dash-skeleton" id="ch-dx-region" data-source="dm_dx"></div>
+      </div>
+      <div class="dm-card dm-wide" id="card-dx-age">
+        <h3 class="dm-card-title">성별·연령대 진료 환자수</h3>
+        <p class="dm-note">연령은 진료 연도 기준. <span class="dm-unit"></span></p>
+        <div class="dm-legend" id="lg-dx-age"></div>
+        <div class="dm-chart dash-skeleton" id="ch-dx-age" data-source="dm_dx"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 방법 -->
+  <section class="dm-page" id="method" role="tabpanel" aria-labelledby="tab-method" hidden>
+    <div class="dm-card dm-method">
+      <h3>시장 정의</h3>
+      <ul>
+        <li><b>약물 시장</b>: 원외처방 줄(claim_rx) 중 주성분의 약효분류가 396(당뇨병용제)인 것의 금액(amt) 합계. 데이터에는 시타글립틴(DPP-4 억제제), 글리메피리드(설포닐우레아), 메트포르민(비구아나이드) 세 성분만 있습니다.</li>
+        <li><b>질환 시장</b>: 주상병 코드가 E11(2형 당뇨병)인 명세서의 총진료비(rvd_rpe_tamt_amt), 환자수, 명세서 수.</li>
+        <li><b>처방 건수</b>는 당뇨병용제가 한 줄 이상 있는 명세서 수, <b>환자수</b>는 고유 수진자 수입니다.</li>
+      </ul>
+      <h3>차원</h3>
+      <ul>
+        <li>월: 요양개시일(recu_fr_dd) 기준.</li>
+        <li>권역·시도: 수진자 거주지(patient.sido_cd). 요양기관 종별: institution.cl_cd.</li>
+        <li>연령대: 진료 연도 − 출생 연도.</li>
+      </ul>
+      <h3>전국 추정</h3>
+      <p>샘플 수진자 3,000명을 입력한 전국 인구로 단순 비례 확대합니다(기본 5,120만 명, 배율 약 17,067배). 샘플이 전국 인구 구성을 대표한다는 가정이며 연령·지역 가중치는 적용하지 않았습니다. 시장 규모의 크기 감을 잡는 용도로 쓰고, 공식 통계(심평원 보건의료빅데이터개방시스템 등)와 대조해 보정하는 것을 권장합니다.</p>
+      <h3>데이터 출처</h3>
+      <p>오즈코딩 헬스케어 SQL 3기 실습 데이터 백업(Google Sheets, 2026-10-06 배포판). 2024-01 ~ 2025-12 명세서 38,375건을 Supabase에 적재하고, 시장 정의는 SQL 뷰(dm_rx, dm_dx)로 구현했습니다. 이 페이지는 그 뷰를 가명처리한 공개 뷰를 읽습니다.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+// claude.ai 대시보드 런타임(dash.*) 대체: Supabase 공개 뷰를 읽어 같은 모양으로 넘긴다.
+(() => {
+  const URL_ = 'https://nsapqdsikjgpkdsftxkz.supabase.co', KEY = 'sb_publishable_LVvurfGf0QFwJdprFYuaaA_JxaMmcBH';
+  const VIEWS = { dm_rx: 'dm_rx_public', dm_dx: 'dm_dx_public' };
+  const PAGE = 1000;  // PostgREST 기본 최대 행 수
+  const state = {}, subs = [];
+  let params = {};
+
+  async function fetchAll(view) {
+    const rows = [];
+    for (let from = 0; ; from += PAGE) {
+      const res = await fetch(`${URL_}/rest/v1/${view}?select=*&order=cid`, {
+        headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, Range: `${from}-${from + PAGE - 1}` },
+      });
+      if (!res.ok) throw new Error(`${view}: HTTP ${res.status}`);
+      const part = await res.json();
+      rows.push(...part);
+      if (part.length < PAGE) return rows;
+    }
+  }
+  const notify = () => subs.forEach((fn) => fn());
+  function load(id) {
+    state[id] = { status: 'loading', data: [] };
+    fetchAll(VIEWS[id])
+      // 페이지 코드는 jid(수진자)·mid(명세서)로 고유 수를 센다. 공개 뷰의 가명 ID를 그 이름으로 넘긴다.
+      .then((rows) => {
+        state[id] = { status: 'ok', data: rows.map(({ pid, cid, ...r }) => ({ ...r, jid: pid, mid: cid })) };
+        window.dispatchEvent(new CustomEvent('dm-loaded'));
+      })
+      .catch((e) => { console.error(e); state[id] = { status: 'error', data: [], message: String(e) }; })
+      .finally(notify);
+  }
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  window.dash = {
+    get colors() { return [css('--s1'), css('--s2'), css('--s3')]; },
+    data(id) { if (!state[id]) load(id); return state[id]; },
+    onData(fn) { subs.push(fn); fn(); },
+    params: () => params,
+    setParams(p) { params = { ...params, ...p }; notify(); },
+    resetParams() { params = {}; notify(); },
+    setLink(id) { history.replaceState(null, '', '#' + id); },
+  };
+  let w = window.innerWidth;
+  window.addEventListener('resize', () => { if (window.innerWidth !== w) { w = window.innerWidth; notify(); } });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', notify);
+})();
+</script>
+<script>
+(() => {
+  const ING = ['시타글립틴', '글리메피리드', '메트포르민'];
+  const CL = ['상급종합병원', '종합병원', '병원', '의원'];
+  const REG = ['수도권', '강원충청권', '호남제주권', '영남권'];
+  const AGE = ['40세 미만', '40대', '50대', '60대', '70대', '80세 이상'];
+  const SEX = ['남', '여'];
+  const YEARS = ['2024', '2025'];
+  const SAMPLE = 3000;
+  const DEF = { view: 'est', pop: 51200000, years: YEARS, ings: ING, cls: CL, regions: REG, sexes: SEX, ages: AGE };
+
+  const $ = (s) => document.querySelector(s);
+  const f0 = d3.format(',.0f'), f1 = d3.format(',.1f'), pct = d3.format('.1%');
+  const won = (v) => {
+    const a = Math.abs(v);
+    if (a >= 1e12) return d3.format(',.2f')(v / 1e12) + '조원';
+    if (a >= 1e8) return f1(v / 1e8) + '억원';
+    if (a >= 1e4) return f0(v / 1e4) + '만원';
+    return f0(v) + '원';
+  };
+  const cnt = (v) => (v >= 1e4 ? f1(v / 1e4) + '만' : f0(v));
+  const moneyAxis = (max) => (max >= 1e8 ? (v) => f0(v / 1e8) + '억' : max >= 1e4 ? (v) => f0(v / 1e4) + '만' : f0);
+  const ingColor = (i) => dash.colors[ING.indexOf(i)];
+  const sexColor = (s) => dash.colors[SEX.indexOf(s)];
+
+  const P = () => ({ ...DEF, ...dash.params() });
+  const factor = (p) => Math.max(1, Number(p.pop) || DEF.pop) / SAMPLE;
+  const kOf = (p) => (p.view === 'est' ? factor(p) : 1);
+
+  // ---------- filters
+  const lists = { years: YEARS, ings: ING, cls: CL, regions: REG, sexes: SEX, ages: AGE };
+  for (const [key, opts] of Object.entries(lists)) {
+    const box = $('#f-' + key);
+    for (const o of opts) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'dm-chip'; b.textContent = o; b.dataset.v = o;
+      b.addEventListener('click', () => {
+        const cur = new Set(P()[key]);
+        cur.has(o) ? cur.delete(o) : cur.add(o);
+        dash.setParams({ [key]: opts.filter((x) => cur.has(x)) });
+      });
+      box.append(b);
+    }
+  }
+  for (const [v, label] of [['est', '전국 추정'], ['sample', '샘플 실측']]) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'dm-chip'; b.textContent = label; b.dataset.v = v;
+    b.addEventListener('click', () => dash.setParams({ view: v }));
+    $('#f-view').append(b);
+  }
+  const popIn = $('#f-pop');
+  popIn.addEventListener('change', () => {
+    const v = Number(popIn.value);
+    if (v >= SAMPLE) dash.setParams({ pop: v });
+  });
+  popIn.addEventListener('blur', () => { popIn.value = P().pop; });
+  $('#f-reset').addEventListener('click', () => dash.resetParams());
+
+  function drawFilters(p) {
+    for (const key of Object.keys(lists)) {
+      for (const b of $('#f-' + key).children) b.setAttribute('aria-pressed', String(p[key].includes(b.dataset.v)));
+    }
+    for (const b of $('#f-view').children) b.setAttribute('aria-pressed', String(p.view === b.dataset.v));
+    if (popIn !== document.activeElement) popIn.value = p.pop;
+    $('#f-factor').textContent = '배율 ×' + f0(factor(p));
+    const unit = p.view === 'est' ? '전국 추정' : '샘플 실측';
+    document.querySelectorAll('.dm-unit').forEach((e) => { e.textContent = unit + '.'; });
+    const yr = p.years.length === 2 ? '2024–2025' : p.years.length ? p.years[0] + '년' : '선택 없음';
+    document.querySelectorAll('.dm-yr').forEach((e) => { e.textContent = yr; });
+  }
+
+  // ---------- tabs
+  const tabs = [...document.querySelectorAll('.dm-tab')];
+  let page = 'rx';
+  function show(id, link) {
+    page = id;
+    for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.page === id));
+    for (const pg of ['rx', 'dx', 'method']) document.getElementById(pg).hidden = pg !== id;
+    if (link) dash.setLink(id);
+    redraw();
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => show(t.dataset.page, true)));
+
+  // ---------- data
+  let cache = { rx: null, dx: null, rxRaw: null, dxRaw: null };
+  function parse(raw, money) {
+    return raw.map((r) => {
+      const o = { ...r, year: String(r.ym).slice(0, 4) };
+      for (const m of money) o[m] = Number(r[m]);
+      return o;
+    });
+  }
+  const inDims = (p) => (r) => p.cls.includes(r.cl_nm) && p.regions.includes(r.region_nm) && p.sexes.includes(r.sex) && p.ages.includes(r.age_grp);
+  const uniq = (rows, key) => new Set(rows.map((r) => r[key])).size;
+  const growth = (cur, prev) => (prev ? cur / prev - 1 : null);
+
+  // ---------- chart kit
+  function tip(box) {
+    let t = box.querySelector('.dm-tip');
+    if (!t) { t = document.createElement('div'); t.className = 'dm-tip'; t.hidden = true; box.append(t); }
+    return t;
+  }
+  function placeTip(box, t, x, y, head, rows) {
+    t.replaceChildren();
+    const h = document.createElement('div'); h.className = 'dm-tip-head'; h.textContent = head; t.append(h);
+    for (const r of rows) {
+      const d = document.createElement('div'); d.className = 'dm-tip-row';
+      if (r.color) { const s = document.createElement('span'); s.className = 'dm-sw'; s.style.background = r.color; d.append(s); }
+      const tx = document.createElement('span'); tx.textContent = (r.name ? r.name + ' ' : '') + r.value; d.append(tx);
+      t.append(d);
+    }
+    t.hidden = false;
+    const W = box.clientWidth, tw = t.offsetWidth, th = t.offsetHeight;
+    let left = x + 12; if (left + tw > W) left = x - tw - 12; if (left < 0) left = 0;
+    let top = y - th - 8; if (top < 0) top = y + 12;
+    t.style.left = left + 'px'; t.style.top = top + 'px';
+  }
+  function clear(box) { box.querySelectorAll('svg, .dm-empty, .dm-hbars').forEach((e) => e.remove()); }
+  function emptyMsg(box, text, bad) {
+    clear(box);
+    const d = document.createElement('div'); d.className = 'dm-empty';
+    if (bad) { const dot = document.createElement('span'); dot.className = 'dm-dot-bad'; d.append(dot); }
+    const s = document.createElement('span'); s.textContent = text; d.append(s);
+    box.append(d);
+  }
+  function legend(el, items) {
+    el.replaceChildren(...items.map(([name, color]) => {
+      const s = document.createElement('span');
+      const sw = document.createElement('span'); sw.className = 'dm-sw'; sw.style.background = color;
+      s.append(sw, document.createTextNode(name)); return s;
+    }));
+  }
+  function measure(svg, labels) {
+    const t = svg.append('text').attr('visibility', 'hidden');
+    let w = 0; for (const l of labels) { t.text(l); w = Math.max(w, t.node().getComputedTextLength()); }
+    t.remove(); return w;
+  }
+  function xLabel(x) { return /^\d{4}-\d{2}$/.test(x) ? x.slice(2, 4) + '.' + x.slice(5) : x.replace(/^20(\d\d)-/, '$1 '); }
+
+  // 여러 시리즈 꺾은선 (x: 범주 문자열)
+  function lineChart(box, { xs, series, yFmt, valFmt, yMax, markers }) {
+    clear(box);
+    if (!xs.length || !series.length) return emptyMsg(box, '선택한 조건에 데이터가 없습니다');
+    const W = box.clientWidth, H = parseInt(getComputedStyle(box).minHeight) || 260;
+    const svg = d3.select(box).append('svg').attr('class', 'dm-svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+    const max = yMax ?? (d3.max(series, (s) => d3.max(s.vals)) || 1);
+    const y0 = d3.scaleLinear([0, max * 1.08], [0, 1]).nice();
+    const ticks = y0.ticks(4);
+    const ml = measure(svg, ticks.map(yFmt)) + 10, mr = 12, mt = 10, mb = 26;
+    const x = d3.scalePoint(xs, [ml + 6, W - mr]);
+    const y = d3.scaleLinear(y0.domain(), [H - mb, mt]);
+    svg.append('g').selectAll('line').data(ticks).join('line')
+      .attr('x1', ml).attr('x2', W - mr).attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
+      .attr('stroke', 'var(--cds-chart-grid)').attr('stroke-width', 1);
+    svg.append('g').selectAll('text').data(ticks).join('text')
+      .attr('x', ml - 8).attr('y', (d) => y(d)).attr('dy', '0.32em').attr('text-anchor', 'end').text(yFmt);
+    const every = Math.max(1, Math.ceil(xs.length / Math.max(2, Math.floor((W - ml) / 56))));
+    svg.append('g').selectAll('text').data(xs.filter((_, i) => i % every === 0)).join('text')
+      .attr('x', (d) => x(d)).attr('y', H - 8).attr('text-anchor', 'middle').text(xLabel);
+    svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', H - mb).attr('y2', H - mb).attr('stroke', 'var(--cds-chart-axis)');
+    const line = d3.line().x((_, i) => x(xs[i])).y((d) => y(d));
+    for (const s of series) {
+      svg.append('path').attr('d', line(s.vals)).attr('fill', 'none').attr('stroke', s.color)
+        .attr('stroke-width', 2).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
+      if (markers) svg.append('g').selectAll('circle').data(s.vals).join('circle')
+        .attr('cx', (_, i) => x(xs[i])).attr('cy', (d) => y(d)).attr('r', 4)
+        .attr('fill', s.color).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2);
+    }
+    const rule = svg.append('line').attr('y1', mt).attr('y2', H - mb).attr('stroke', 'var(--cds-chart-reference)').attr('visibility', 'hidden');
+    const dots = svg.append('g');
+    const t = tip(box);
+    svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml).attr('height', H).attr('fill', 'transparent')
+      .on('pointermove', (ev) => {
+        const [mx] = d3.pointer(ev);
+        let i = 0, best = Infinity;
+        xs.forEach((v, j) => { const d = Math.abs(x(v) - mx); if (d < best) { best = d; i = j; } });
+        const px = x(xs[i]);
+        rule.attr('x1', px).attr('x2', px).attr('visibility', 'visible');
+        dots.selectAll('circle').data(series).join('circle').attr('cx', px).attr('cy', (s) => y(s.vals[i])).attr('r', 4.5)
+          .attr('fill', (s) => s.color).attr('stroke', 'var(--color-panel)').attr('stroke-width', 2);
+        placeTip(box, t, px, d3.min(series, (s) => y(s.vals[i])), xs[i], series.map((s) => ({ name: series.length > 1 ? s.name : '', color: series.length > 1 ? s.color : null, value: valFmt(s.vals[i]) })));
+      })
+      .on('pointerleave', () => { rule.attr('visibility', 'hidden'); dots.selectAll('circle').remove(); t.hidden = true; });
+  }
+
+  // 세로 막대 (시리즈 1개 이상, 묶음)
+  function barChart(box, { cats, series, yFmt, valFmt }) {
+    clear(box);
+    if (!cats.length || !series.length || d3.max(series, (s) => d3.max(s.vals)) === 0) return emptyMsg(box, '선택한 조건에 데이터가 없습니다');
+    const W = box.clientWidth, H = parseInt(getComputedStyle(box).minHeight) || 260;
+    const svg = d3.select(box).append('svg').attr('class', 'dm-svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+    const max = d3.max(series, (s) => d3.max(s.vals)) || 1;
+    const y0 = d3.scaleLinear([0, max * 1.08], [0, 1]).nice();
+    const ticks = y0.ticks(4);
+    const ml = measure(svg, ticks.map(yFmt)) + 10, mr = 8, mt = 10, mb = 26;
+    const x = d3.scaleBand(cats, [ml, W - mr]).paddingInner(series.length > 1 ? 0.3 : 0.25).paddingOuter(0.1);
+    const xi = d3.scaleBand(series.map((s) => s.name), [0, x.bandwidth()]).padding(series.length > 1 ? 0.08 : 0);
+    const y = d3.scaleLinear(y0.domain(), [H - mb, mt]);
+    svg.append('g').selectAll('line').data(ticks).join('line')
+      .attr('x1', ml).attr('x2', W - mr).attr('y1', (d) => y(d)).attr('y2', (d) => y(d)).attr('stroke', 'var(--cds-chart-grid)');
+    svg.append('g').selectAll('text').data(ticks).join('text')
+      .attr('x', ml - 8).attr('y', (d) => y(d)).attr('dy', '0.32em').attr('text-anchor', 'end').text(yFmt);
+    const labelW = measure(svg, cats.map(xLabel)) + 8;
+    const every = Math.max(1, Math.ceil(labelW / x.step()));
+    svg.append('g').selectAll('text').data(cats.filter((_, i) => i % every === 0)).join('text')
+      .attr('x', (d) => x(d) + x.bandwidth() / 2).attr('y', H - 8).attr('text-anchor', 'middle').text(xLabel);
+    const bw = Math.min(32, xi.bandwidth());
+    const g = svg.append('g');
+    series.forEach((s) => {
+      g.append('g').selectAll('path').data(s.vals).join('path')
+        .attr('fill', s.color)
+        .attr('d', (v, i) => {
+          const x0 = x(cats[i]) + xi(s.name) + (xi.bandwidth() - bw) / 2, y1 = y(v), y2 = y(0), r = Math.min(4, bw / 2, y2 - y1);
+          if (y2 - y1 <= 0) return '';
+          return `M${x0},${y2}V${y1 + r}Q${x0},${y1} ${x0 + r},${y1}H${x0 + bw - r}Q${x0 + bw},${y1} ${x0 + bw},${y1 + r}V${y2}Z`;
+        });
+    });
+    svg.append('line').attr('x1', ml).attr('x2', W - mr).attr('y1', y(0)).attr('y2', y(0)).attr('stroke', 'var(--cds-chart-axis)');
+    const t = tip(box);
+    svg.append('g').selectAll('rect').data(cats).join('rect')
+      .attr('x', (c) => x(c) - (x.step() - x.bandwidth()) / 2).attr('width', x.step()).attr('y', 0).attr('height', H - mb).attr('fill', 'transparent')
+      .on('pointerenter pointermove', (ev, c) => {
+        const i = cats.indexOf(c);
+        g.selectAll('g').each(function () { d3.select(this).selectAll('path').attr('opacity', (_, j) => (j === i ? 1 : 0.45)); });
+        placeTip(box, t, x(c) + x.bandwidth() / 2, y(d3.max(series, (s) => s.vals[i])), c,
+          series.map((s) => ({ name: series.length > 1 ? s.name : '', color: series.length > 1 ? s.color : null, value: valFmt(s.vals[i]) })));
+      })
+      .on('pointerleave', () => { g.selectAll('path').attr('opacity', 1); t.hidden = true; });
+  }
+
+  // 가로 막대 (HTML, 값 직접 표기)
+  function hbars(box, rows, fmt) {
+    clear(box);
+    const shown = rows.filter((r) => r.value > 0);
+    if (!shown.length) return emptyMsg(box, '선택한 조건에 데이터가 없습니다');
+    const max = d3.max(shown, (r) => r.value);
+    const wrap = document.createElement('div'); wrap.className = 'dm-hbars';
+    for (const r of shown) {
+      const l = document.createElement('span'); l.className = 'dm-hb-label'; l.textContent = r.label;
+      const tr = document.createElement('div'); tr.className = 'dm-hb-track';
+      const b = document.createElement('div'); b.className = 'dm-hb-bar'; b.style.width = (r.value / max) * 100 + '%'; b.style.background = r.color || dash.colors[0];
+      tr.append(b);
+      const v = document.createElement('span'); v.className = 'dm-hb-val'; v.textContent = fmt(r.value);
+      wrap.append(l, tr, v);
+    }
+    box.append(wrap);
+  }
+  function table(el, head, rows) {
+    const thead = document.createElement('thead'), tr = document.createElement('tr');
+    for (const h of head) { const th = document.createElement('th'); th.textContent = h; tr.append(th); }
+    thead.append(tr);
+    const tbody = document.createElement('tbody');
+    for (const r of rows) {
+      const row = document.createElement('tr');
+      for (const c of r) { const td = document.createElement('td'); td.textContent = c; row.append(td); }
+      tbody.append(row);
+    }
+    el.replaceChildren(thead, tbody);
+  }
+  function kpi(id, main, alt, g) {
+    const el = document.getElementById(id);
+    el.querySelector('.dm-kpi-value').textContent = main;
+    el.querySelector('.dm-kpi-alt').textContent = alt;
+    const d = el.querySelector('.dm-kpi-delta');
+    if (g == null) { d.textContent = ''; d.className = 'dm-kpi-delta'; return; }
+    const s = Math.abs(g) < 0.0005 ? 'dm-flat' : g > 0 ? 'dm-up' : 'dm-down';
+    d.className = 'dm-kpi-delta ' + s;
+    d.textContent = (g > 0.0005 ? '▲ ' : g < -0.0005 ? '▼ ' : '– ') + (g >= 0 ? '+' : '') + pct(g) + ' · 2025 vs 2024';
+  }
+  const months = d3.range(0, 24).map((i) => `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`);
+
+  // ---------- render
+  function drawRx(p, rxDim) {
+    const k = kOf(p), alt = p.view === 'est' ? '샘플 실측 ' : '전국 추정 ', ka = p.view === 'est' ? 1 : factor(p);
+    const rows = rxDim.filter((r) => p.ings.includes(r.ingredient) && p.years.includes(r.year));
+    const ingDim = rxDim.filter((r) => p.ings.includes(r.ingredient));
+    const by = (y) => ingDim.filter((r) => r.year === y);
+    const amt = d3.sum(rows, (r) => r.amt), pts = uniq(rows, 'jid'), n = uniq(rows, 'mid');
+    kpi('kpi-rx-amt', won(amt * k), alt + won(amt * ka), growth(d3.sum(by('2025'), (r) => r.amt), d3.sum(by('2024'), (r) => r.amt)));
+    kpi('kpi-rx-pts', cnt(pts * k) + '명', alt + cnt(pts * ka) + '명', growth(uniq(by('2025'), 'jid'), uniq(by('2024'), 'jid')));
+    kpi('kpi-rx-n', cnt(n * k) + '건', alt + cnt(n * ka) + '건', growth(uniq(by('2025'), 'mid'), uniq(by('2024'), 'mid')));
+
+    const ings = ING.filter((i) => p.ings.includes(i));
+    const xs = months.filter((m) => p.years.includes(m.slice(0, 4)));
+    const roll = d3.rollup(rows, (v) => d3.sum(v, (r) => r.amt), (r) => r.ingredient, (r) => r.ym);
+    const series = ings.map((i) => ({ name: i, color: ingColor(i), vals: xs.map((m) => (roll.get(i)?.get(m) || 0) * k) }));
+    legend($('#lg-rx-month'), ings.map((i) => [i, ingColor(i)]));
+    const mx = d3.max(series, (s) => d3.max(s.vals)) || 0;
+    lineChart($('#ch-rx-month'), { xs: rows.length ? xs : [], series, yFmt: moneyAxis(mx), valFmt: won });
+
+    const s = ings.map((i) => {
+      const r = rows.filter((x) => x.ingredient === i);
+      return { i, amt: d3.sum(r, (x) => x.amt), n: uniq(r, 'mid'), cls: r[0]?.drug_class || '' };
+    }).filter((x) => x.n > 0);
+    const tA = d3.sum(s, (x) => x.amt), tN = d3.sum(s, (x) => x.n);
+    hbars($('#ch-rx-share'), s.map((x) => ({ label: x.i, value: tA ? x.amt / tA : 0, color: ingColor(x.i) })), pct);
+    table($('#tb-rx-share'), ['성분', '계열', '처방액', '금액 점유율', '건수 점유율', '건당 금액'],
+      s.map((x) => [x.i, x.cls, won(x.amt * k), pct(x.amt / tA), pct(x.n / tN), won(x.amt / x.n)]));
+
+    const qOf = (ym) => ym.slice(0, 4) + '-Q' + (Math.floor((Number(ym.slice(5)) - 1) / 3) + 1);
+    const qs = [...new Set(xs.map(qOf))];
+    const qr = d3.rollup(rows, (v) => d3.sum(v, (r) => r.amt), (r) => qOf(r.ym), (r) => r.ingredient);
+    const qseries = ings.map((i) => ({ name: i, color: ingColor(i), vals: qs.map((q) => { const m = qr.get(q); const t = m ? d3.sum(m.values()) : 0; return t ? (m.get(i) || 0) / t : 0; }) }));
+    legend($('#lg-rx-q'), ings.map((i) => [i, ingColor(i)]));
+    lineChart($('#ch-rx-q'), { xs: rows.length ? qs : [], series: qseries, yFmt: d3.format('.0%'), valFmt: pct, yMax: Math.min(1, d3.max(qseries, (q) => d3.max(q.vals)) || 1), markers: true });
+
+    const sumBy = (key, order) => order.map((c) => ({ label: c, value: d3.sum(rows.filter((r) => r[key] === c), (r) => r.amt) * k }));
+    hbars($('#ch-rx-cl'), sumBy('cl_nm', CL), won);
+    hbars($('#ch-rx-region'), sumBy('region_nm', REG), won);
+
+    const sexes = SEX.filter((x) => p.sexes.includes(x));
+    const ar = d3.rollup(rows, (v) => d3.sum(v, (r) => r.amt), (r) => r.sex, (r) => r.age_grp);
+    const aseries = sexes.map((x) => ({ name: x, color: sexColor(x), vals: AGE.map((a) => (ar.get(x)?.get(a) || 0) * k) }));
+    legend($('#lg-rx-age'), sexes.map((x) => [x, sexColor(x)]));
+    barChart($('#ch-rx-age'), { cats: AGE, series: aseries, yFmt: moneyAxis(d3.max(aseries, (q) => d3.max(q.vals)) || 0), valFmt: won });
+
+    const sido = d3.rollups(rows, (v) => ({ amt: d3.sum(v, (r) => r.amt), pts: uniq(v, 'jid') }), (r) => r.sido_nm).sort((a, b) => b[1].amt - a[1].amt);
+    table($('#tb-rx-sido'), ['시도', '권역', '처방액', '점유율', '처방 환자수'],
+      sido.map(([nm, v]) => [nm, rows.find((r) => r.sido_nm === nm).region_nm, won(v.amt * k), pct(v.amt / amt), cnt(v.pts * k) + '명']));
+  }
+
+  function drawDx(p, dxDim) {
+    const k = kOf(p), alt = p.view === 'est' ? '샘플 실측 ' : '전국 추정 ', ka = p.view === 'est' ? 1 : factor(p);
+    const rows = dxDim.filter((r) => p.years.includes(r.year));
+    const by = (y) => dxDim.filter((r) => r.year === y);
+    const tot = d3.sum(rows, (r) => r.total), pts = uniq(rows, 'jid'), n = rows.length;
+    kpi('kpi-dx-total', won(tot * k), alt + won(tot * ka), growth(d3.sum(by('2025'), (r) => r.total), d3.sum(by('2024'), (r) => r.total)));
+    kpi('kpi-dx-pts', cnt(pts * k) + '명', alt + cnt(pts * ka) + '명', growth(uniq(by('2025'), 'jid'), uniq(by('2024'), 'jid')));
+    kpi('kpi-dx-n', cnt(n * k) + '건', alt + cnt(n * ka) + '건', growth(by('2025').length, by('2024').length));
+
+    const xs = months.filter((m) => p.years.includes(m.slice(0, 4)));
+    const mr = d3.rollup(rows, (v) => d3.sum(v, (r) => r.total), (r) => r.ym);
+    const vals = xs.map((m) => (mr.get(m) || 0) * k);
+    barChart($('#ch-dx-month'), { cats: rows.length ? xs : [], series: [{ name: '총진료비', color: dash.colors[0], vals }], yFmt: moneyAxis(d3.max(vals) || 0), valFmt: won });
+
+    const yrs = YEARS.map((y) => {
+      const r = by(y);
+      return { y, total: d3.sum(r, (x) => x.total), ins: d3.sum(r, (x) => x.insurer), self: d3.sum(r, (x) => x.self), pts: uniq(r, 'jid'), n: r.length };
+    });
+    const g = (a, b) => (a ? (b / a - 1 >= 0 ? '+' : '') + pct(b / a - 1) : '');
+    const [a, b] = yrs;
+    table($('#tb-dx-year'), ['항목', '2024', '2025', '증감'], [
+      ['총진료비', won(a.total * k), won(b.total * k), g(a.total, b.total)],
+      ['보험자부담', won(a.ins * k), won(b.ins * k), g(a.ins, b.ins)],
+      ['본인부담', won(a.self * k), won(b.self * k), g(a.self, b.self)],
+      ['진료 환자수', cnt(a.pts * k) + '명', cnt(b.pts * k) + '명', g(a.pts, b.pts)],
+      ['명세서', cnt(a.n * k) + '건', cnt(b.n * k) + '건', g(a.n, b.n)],
+      ['환자당 진료비', a.pts ? won(a.total / a.pts) : '', b.pts ? won(b.total / b.pts) : '', a.pts && b.pts ? g(a.total / a.pts, b.total / b.pts) : ''],
+      ['명세서당 진료비', a.n ? won(a.total / a.n) : '', b.n ? won(b.total / b.n) : '', a.n && b.n ? g(a.total / a.n, b.total / b.n) : ''],
+    ]);
+
+    const ptsBy = (key, order) => order.map((c) => ({ label: c, value: uniq(rows.filter((r) => r[key] === c), 'jid') * k }));
+    hbars($('#ch-dx-cl'), ptsBy('cl_nm', CL), (v) => cnt(v) + '명');
+    hbars($('#ch-dx-region'), ptsBy('region_nm', REG), (v) => cnt(v) + '명');
+
+    const sexes = SEX.filter((x) => p.sexes.includes(x));
+    const aseries = sexes.map((x) => ({ name: x, color: sexColor(x), vals: AGE.map((ag) => uniq(rows.filter((r) => r.sex === x && r.age_grp === ag), 'jid') * k) }));
+    legend($('#lg-dx-age'), sexes.map((x) => [x, sexColor(x)]));
+    barChart($('#ch-dx-age'), { cats: AGE, series: aseries, yFmt: (v) => cnt(v), valFmt: (v) => cnt(v) + '명' });
+  }
+
+  function drawTakeaway(p, rxDim, dxDim) {
+    const k = kOf(p), unit = p.view === 'est' ? '전국 추정' : '샘플';
+    const ingDim = rxDim.filter((r) => p.ings.includes(r.ingredient));
+    const r24 = d3.sum(ingDim.filter((r) => r.year === '2024'), (r) => r.amt), r25 = d3.sum(ingDim.filter((r) => r.year === '2025'), (r) => r.amt);
+    const d24 = d3.sum(dxDim.filter((r) => r.year === '2024'), (r) => r.total), d25 = d3.sum(dxDim.filter((r) => r.year === '2025'), (r) => r.total);
+    const el = $('#takeaway');
+    if (!r25 && !d25) { el.textContent = '선택한 조건에 2025년 데이터가 없습니다.'; return; }
+    const sg = (a, b) => (a ? `전년 대비 ${b / a - 1 >= 0 ? '+' : ''}${pct(b / a - 1)}` : '전년 데이터 없음');
+    const rows25 = ingDim.filter((r) => r.year === '2025');
+    const top = d3.rollups(rows25, (v) => d3.sum(v, (r) => r.amt), (r) => r.ingredient).sort((a, b) => b[1] - a[1])[0];
+    const rxG = r24 ? r25 / r24 - 1 : 0, dxG = d24 ? d25 / d24 - 1 : 0;
+    const verdict = Math.abs(rxG) < 0.02 && dxG > 0.05 ? ' 진료 규모는 커졌지만 약물 시장은 제자리입니다.' : '';
+    el.textContent = `2025년 ${unit} 당뇨병용제 처방액은 ${won(r25 * k)}(${sg(r24, r25)}), 2형 당뇨병 총진료비는 ${won(d25 * k)}(${sg(d24, d25)})입니다.` +
+      (top ? ` 처방액 1위 성분은 ${top[0]}(점유율 ${pct(top[1] / r25)})입니다.` : '') + verdict;
+  }
+
+  function redraw() {
+    const p = P();
+    drawFilters(p);
+    const a = dash.data('dm_rx'), b = dash.data('dm_dx');
+    const boxes = document.querySelectorAll('.dm-chart, .dm-chart-sm');
+    const pending = [a, b].some((d) => d.status === 'loading' || d.status === 'missing');
+    const failed = [a, b].some((d) => d.status === 'error' || d.status === 'connect' || d.status === 'declined');
+    if (failed) {
+      document.querySelectorAll('.dash-skeleton').forEach((e) => e.classList.remove('dash-skeleton'));
+      boxes.forEach((bx) => emptyMsg(bx, '데이터를 불러오지 못했습니다', true));
+      return;
+    }
+    if (pending || a.status !== 'ok' || b.status !== 'ok') return;
+    document.querySelectorAll('.dash-skeleton').forEach((e) => e.classList.remove('dash-skeleton'));
+    if (cache.rxRaw !== a.data) { cache.rxRaw = a.data; cache.rx = parse(a.data, ['amt']); }
+    if (cache.dxRaw !== b.data) { cache.dxRaw = b.data; cache.dx = parse(b.data, ['total', 'insurer', 'self']); }
+    const keep = inDims(p);
+    const rxDim = cache.rx.filter(keep), dxDim = cache.dx.filter(keep);
+    drawTakeaway(p, rxDim, dxDim);
+    if (page === 'rx') drawRx(p, rxDim);
+    if (page === 'dx') drawDx(p, dxDim);
+  }
+
+  const start = ['rx', 'dx', 'method'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'rx';
+  for (const t of tabs) t.setAttribute('aria-selected', String(t.dataset.page === start));
+  for (const pg of ['rx', 'dx', 'method']) document.getElementById(pg).hidden = pg !== start;
+  page = start;
+  dash.onData(redraw);
+})();
+</script>
+<footer class="site-foot">
+  데이터: Supabase(Postgres) 공개 뷰 <code>dm_rx_public</code>·<code>dm_dx_public</code>를 페이지를 열 때마다 실시간으로 읽습니다.
+  수진자·명세서 ID는 해시로 가명처리했고, 원본 청구 테이블은 공개되지 않습니다. <span id="loaded-at"></span><br>
+  소스: <a href="https://github.com/jrohan93/OZ_dashboard">github.com/jrohan93/OZ_dashboard</a>
+</footer>
+</main>
+<script>
+window.addEventListener('dm-loaded', () => {
+  document.getElementById('loaded-at').textContent = '불러온 시각: ' + new Date().toLocaleString('ko-KR');
+});
+</script>
+</body>
+</html>

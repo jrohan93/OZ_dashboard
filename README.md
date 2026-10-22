@@ -1,5 +1,7 @@
 # 국내 당뇨병 시장 규모 대시보드
 
+**공개 대시보드: https://jrohan93.github.io/OZ_dashboard/** (Supabase 실시간 연결)
+
 제약회사 마케터용. 실습 청구 데이터(수진자 3,000명, 2024-01 ~ 2025-12)로 당뇨병 시장 크기를 봅니다.
 
 - **약물 시장**: 당뇨병용제(약효분류 396) 원외처방액 · 성분별 점유율
@@ -12,7 +14,7 @@
 ```bash
 uv venv && uv pip install -r requirements.txt
 cp .env.example .env                                  # SUPABASE_DB_URL 채우기 (없으면 data/raw CSV로 동작)
-.venv/bin/python scripts/fetch_data.py                # 구글 시트 -> data/raw/*.csv
+.venv/bin/python scripts/fetch_data.py                # 구글 시트 -> data/raw/*.csv (data/는 git에 없음)
 .venv/bin/python scripts/load_supabase.py             # data/raw -> Supabase
 .venv/bin/streamlit run app.py
 ```
@@ -36,6 +38,8 @@ supabase db push
 | `scripts/fetch_data.py` | 시트의 각 탭을 CSV로 내려받기 |
 | `scripts/export_artifact_data.py` | 공유판용 팩트 CSV(`data/export/`) 생성 |
 | `dashboard/index.html` | 공유판(claude.ai Artifact) 페이지 원본 |
+| `scripts/build_pages.py` | 공유판 페이지를 GitHub Pages용 `docs/index.html`로 변환 |
+| `docs/index.html` | 공개 대시보드 (Supabase 공개 뷰를 publishable 키로 읽음) |
 
 공유판: https://claude.ai/artifact/FAe1GcavAmRRMVRSCQJwWS
 
